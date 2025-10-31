@@ -11,7 +11,7 @@ run use id flag for detach mode
 $ docker-compose up 
 ```
 1. Copy .env.example to .env and put you credentials inside
-2. Go to database UI and create database name like in .env file
+2. Go to database UI and create 2 databases name like in .env file and for testing - banking_test
     > UI available localhost:8087
 3. Run migration and seeds
 ```bash
