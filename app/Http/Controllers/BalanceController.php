@@ -2,141 +2,67 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Balance;
-use App\Models\Transaction;
-use App\Validations\UserValidation;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use App\Services\BalanceService;
+use App\Validations\BalanceRequestValidation;
 
 class BalanceController extends Controller
 {
-    // Пополнение счета
-    public function deposit(Request $request, UserValidation $userValidation)
-    {
-        $userValidation->validateRequest($request->all());
+    public function __construct(
+        private readonly BalanceService $balanceService,
+        private readonly BalanceRequestValidation $userValidation,
+    ) {
+    }
 
-        DB::beginTransaction();
+    public function deposit(Request $request)
+    {
+        $this->userValidation->validateDepositRequest($request->all());
 
         try {
-            $balance = Balance::firstOrCreate(['user_id' => $request->user_id]);
-            $balance->balance += $request->amount;
-            $balance->save();
-
-            Transaction::create([
-                'user_id' => $request->user_id,
-                'status' => 'deposit',
-                'amount' => $request->amount,
-                'comment' => $request->comment,
-            ]);
-
-            DB::commit();
-
+            $balance = $this->balanceService->deposit($request->user_id, $request->amount, $request->comment);
             return response()->json(['balance' => $balance->balance], 200);
         } catch (\Exception $e) {
-            DB::rollBack();
             return response()->json(['error' => 'Ошибка при пополнении'], 500);
         }
     }
 
-    // Снятие средств
     public function withdraw(Request $request)
     {
-        $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'amount' => 'required|numeric|min:0.01',
-            'comment' => 'nullable|string',
-        ]);
-
-        DB::beginTransaction();
+        $this->userValidation->validateWithdrawRequest($request->all());
 
         try {
-            $balance = Balance::where('user_id', $request->user_id)->first();
-
-            if (!$balance || $balance->balance < $request->amount) {
-                return response()->json(['error' => 'Недостаточно средств'], 409);
-            }
-
-            $balance->balance -= $request->amount;
-            $balance->save();
-
-            Transaction::create([
-                'user_id' => $request->user_id,
-                'status' => 'withdraw',
-                'amount' => $request->amount,
-                'comment' => $request->comment,
-            ]);
-
-            DB::commit();
-
+            $balance = $this->balanceService->withdraw($request->user_id, $request->amount, $request->comment);
             return response()->json(['balance' => $balance->balance], 200);
         } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json(['error' => 'Ошибка при снятии'], 500);
+            return response()->json(['error' => 'Недостаточно средств'], 409);
         }
     }
 
-    // Перевод между пользователями
+    // Transfer money between users
     public function transfer(Request $request)
     {
-        $request->validate([
-            'from_user_id' => 'required|exists:users,id',
-            'to_user_id' => 'required|exists:users,id',
-            'amount' => 'required|numeric|min:0.01',
-            'comment' => 'nullable|string',
-        ]);
-
-        DB::beginTransaction();
+        $this->userValidation->validateTransferRequest($request->all());
 
         try {
-            $fromBalance = Balance::where('user_id', $request->from_user_id)->first();
-            $toBalance = Balance::where('user_id', $request->to_user_id)->first();
+            $transfer = $this->balanceService->transfer(
+                $request->from_user_id,
+                $request->to_user_id,
+                $request->amount,
+                $request->comment
+            );
 
-            if (!$fromBalance || $fromBalance->balance < $request->amount) {
-                return response()->json(['error' => 'Недостаточно средств'], 409);
-            }
-
-            // Списываем средства с отправителя
-            $fromBalance->balance -= $request->amount;
-            $fromBalance->save();
-
-            // Добавляем средства получателю
-            if (!$toBalance) {
-                $toBalance = Balance::create(['user_id' => $request->to_user_id, 'balance' => 0]);
-            }
-            $toBalance->balance += $request->amount;
-            $toBalance->save();
-
-            // Записываем транзакции
-            Transaction::create([
-                'user_id' => $request->from_user_id,
-                'status' => 'transfer_out',
-                'amount' => $request->amount,
-                'comment' => $request->comment,
-            ]);
-
-            Transaction::create([
-                'user_id' => $request->to_user_id,
-                'status' => 'transfer_in',
-                'amount' => $request->amount,
-                'comment' => $request->comment,
-            ]);
-
-            DB::commit();
-
-            return response()->json([
-                'from_balance' => $fromBalance->balance,
-                'to_balance' => $toBalance->balance,
-            ], 200);
+            return response()->json($transfer, 200);
         } catch (\Exception $e) {
-            DB::rollBack();
+            if ($e->getCode() !== 500) {
+                return response()->json(['error' => $e->getMessage()], $e->getCode());
+            }
             return response()->json(['error' => 'Ошибка при переводе'], 500);
         }
     }
 
-    // Получение баланса
     public function getBalance($user_id)
     {
-        $balance = Balance::where('user_id', $user_id)->first();
+        $balance = $this->balanceService->getBalance($user_id);
 
         if (!$balance) {
             return response()->json(['error' => 'Пользователь не найден'], 404);

@@ -14,10 +14,14 @@ $ docker-compose up
 2. Go to database UI and create database name like in .env file
     > UI available localhost:8087
 3. Run migration and seeds
-    > $ php artisan migrate
-    > $ php artisan db:seed
+```bash
+$ php artisan migrate
+$ php artisan db:seed
+```
 4. Optionalli generate app key
-    > $ php artisan key:generate
+```bash
+$ php artisan key:generate
+```
 
 ## Postman
 ### For all request use Header - [Accept - application/json]
@@ -34,6 +38,7 @@ body
 ```
 2. Withdraw
     > POST /api/withdraw
+body
 ```json
 {
   "user_id": 1,
@@ -43,6 +48,7 @@ body
 ```
 3. Transfer between users
     > POST /api/transfer
+body
 ```json
 {
   "from_user_id": 1,
