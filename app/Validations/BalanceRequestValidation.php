@@ -2,7 +2,7 @@
 
 namespace App\Validations;
 
-use App\Services\BalanceService;
+use App\Rules\UserExistsRule;
 use App\Services\UserService;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
@@ -33,17 +33,13 @@ class BalanceRequestValidation
     public function validateDepositRequest(array $data)
     {
         $rules = [
-            'user_id' => ['required', function ($attribute, $value, $fail) {
-                $this->validateUserExist($attribute, $value, $fail);
-            }],
+            'user_id' => ['required', new UserExistsRule($this->userService)],
             'amount' => 'required|numeric|min:0.01',
             'comment' => 'nullable|string',
         ];
 
-        // Create a validator instance
         $validator = Validator::make($data, $rules, self::CUSTOM_ERROR_MESSAGES);
 
-        // Check if validation fails
         if ($validator->fails()) {
             $this->handleValidationFailure($validator);
         }
@@ -57,9 +53,7 @@ class BalanceRequestValidation
     public function validateWithdrawRequest(array $data)
     {
         $rules = [
-            'user_id' => ['required', function ($attribute, $value, $fail) {
-                $this->validateUserExist($attribute, $value, $fail);
-            }],
+            'user_id' => ['required', new UserExistsRule($this->userService)],
             'amount' => 'required|numeric|min:0.01',
             'comment' => 'nullable|string',
         ];
@@ -79,12 +73,8 @@ class BalanceRequestValidation
     public function validateTransferRequest(array $data)
     {
         $rules = [
-            'from_user_id' => ['required', function ($attribute, $value, $fail) {
-                $this->validateUserExist($attribute, $value, $fail);
-            }],
-            'to_user_id' => ['required', function ($attribute, $value, $fail) {
-                $this->validateUserExist($attribute, $value, $fail);
-            }],
+            'from_user_id' => ['required', new UserExistsRule($this->userService)],
+            'to_user_id' => ['required', new UserExistsRule($this->userService)],
             'amount' => 'required|numeric|min:0.01',
             'comment' => 'nullable|string',
         ];
@@ -97,22 +87,24 @@ class BalanceRequestValidation
     }
 
     /**
-     * @param $validator
-     * @return mixed
+     * @param \Illuminate\Contracts\Validation\Validator $validator
      * @throws ValidationException
      */
     protected function handleValidationFailure($validator)
     {
         $errors = $validator->errors();
-        $firstError = $errors->first();
-
         $statusCode = 422;
 
-        if (str_contains($firstError, self::USER_ID_IS_REQUIRED_ERROR_MESSAGE)) {
-            $statusCode = 422;
-        }
-        elseif (str_contains($firstError, self::USER_NOT_FOUND_ERROR_MESSAGE)) {
-            $statusCode = 404;
+        $userIdFields = ['user_id', 'from_user_id', 'to_user_id'];
+
+        foreach ($userIdFields as $field) {
+            if ($errors->has($field)) {
+                $fieldErrors = $errors->get($field);
+                if (in_array(self::USER_NOT_FOUND_ERROR_MESSAGE, $fieldErrors)) {
+                    $statusCode = 404;
+                    break;
+                }
+            }
         }
 
         throw new ValidationException($validator, response()->json([
@@ -120,13 +112,5 @@ class BalanceRequestValidation
             'message' => 'Validation failed',
             'errors' => $errors
         ], $statusCode));
-    }
-
-    public function validateUserExist($attribute, $value, $fail)
-    {
-        $userExist = $this->userService->getById($value);
-        if (!$userExist) {
-            return $fail(self::USER_NOT_FOUND_ERROR_MESSAGE);
-        }
     }
 }

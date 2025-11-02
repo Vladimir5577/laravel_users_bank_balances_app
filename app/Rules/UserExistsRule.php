@@ -2,11 +2,11 @@
 
 namespace App\Rules;
 
-use App\Services\UserService;
 use Closure;
+use App\Services\UserService;
 use Illuminate\Contracts\Validation\ValidationRule;
 
-class UserExists implements ValidationRule
+class UserExistsRule implements ValidationRule
 {
     public function __construct(
         private readonly UserService $userService
@@ -20,11 +20,11 @@ class UserExists implements ValidationRule
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         if (empty($value)) {
-            return; // Let 'required' rule handle empty values
+            return;
         }
-        
+
         $user = $this->userService->getById($value);
-        
+
         if (!$user) {
             $fail('User not found.');
         }
