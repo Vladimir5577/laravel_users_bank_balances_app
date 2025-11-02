@@ -1,30 +1,48 @@
 ## Banking app
 
-Install in docker:
-> build - for the first time
+### Install in docker:
+1. Copy .env.example to .env (optionally put you credentials inside).
+```bash
+$ cp .env.example .env
+```
+
+2. Build - for the first time.
 ```bash
 $ docker-compose build 
 ```
-run use id flag for detach mode
 
+3. run use -d flag for detach mode.
 ```bash
 $ docker-compose up 
 ```
-1. Copy .env.example to .env and put you credentials inside
-2. Go to database UI and create 2 databases name like in .env file and for testing - banking_test
-    > UI available localhost:8087
-3. Run migration and seeds
+
+4. Install dependencies:
+```bash
+$ composer install
+```
+
+5. Go to database UI and create 2 databases name like in .env file 
+    and for testing - banking_test (name in phpunit.xml). UI available:
+    > type in browser - localhost:8087
+
+6. Run migration.
 ```bash
 $ php artisan migrate
+```
+
+7. Run seeder - optionally.
+```bash
 $ php artisan db:seed
 ```
-4. Optionalli generate app key
+
+8. Optionally generate app key
 ```bash
 $ php artisan key:generate
 ```
 
 ## Postman
 ### For all request use Header - [Accept - application/json]
+
 1. Add to accountPOST /api/deposit 
     > POST /api/deposit
 body
@@ -34,7 +52,6 @@ body
   "amount": 500.00,
   "comment": "Пополнение через карту"
 }
-
 ```
 2. Withdraw
     > POST /api/withdraw
